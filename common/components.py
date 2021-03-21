@@ -9,21 +9,78 @@ import logging
 
 class Command(ModelValue):
     
-    def __init__(self, name = "defaultModel", parent = None, initial = False, method = None, external_write = False):
+    def __init__(self, name = "defaultModel", parent = None, initial = False, 
+                 on_update_request = None, condition = None, external_write = False):
         super().__init__(name, parent, ValueDataType.Boolean, initial, external_write)
         self.logger = logging.getLogger(__name__)
+        self._condition = condition
+        self._on_update_request = on_update_request
         
-        self._method = method
+    @property
+    def on_update_request(self, value):
+        return self._on_update_request
         
-    def set_callback(self, method):
-        self._method = method
+    @on_update_request.setter    
+    def on_updat_request(self, value):
+        self._on_update_request = value
     
     def update_request(self, value):
 
-        if self._method is not None and callable(self._method):
-            self._method()
-            
+        if self._on_update_request and callable(self._on_update_request):
+            self._on_update_request()
+        else:
+            if self._condition:
+                if callable(self._condition):
+                    if self._condition():
+                        self.value = value
+                else:
+                    if self._condition:
+                        self.value = value
+            else:
+                self.value = value
         return 0     
+
+
+class CommandToggle(ModelValue):
+    
+    def __init__(self, name = "defaultModel", parent = None, initial = False, 
+                 value_toggled = None, condition = None):
+        super().__init__(name, parent, ValueDataType.Boolean, initial, True)
+        self.logger = logging.getLogger(__name__)
+        self._condition = condition
+        self._value_toggled = value_toggled
+        
+    def update_value(self, value):
+        if self._condition:
+            if callable(self._condition):
+                if self._condition():
+                    self.value = value
+            else:
+                if self._condition:
+                    self.value = value
+        else:
+            self.value = value
+            
+        if self._value_toggled and callable(self._value_toggled):
+            self._value_toggled(value)
+        return 0
+
+class CommandTap(ModelValue):
+    
+    def __init__(self, name = "defaultModel", parent = None, initial = False, 
+                 value_tapped = None):
+        super().__init__(name, parent, ValueDataType.Boolean, initial, True)
+        
+        self.logger = logging.getLogger(__name__)
+        self._value_tapped = value_tapped
+    
+    def update_value(self, value):
+
+        if self._value_tapped and callable(self._value_tapped):
+            self._value_tapped(value)
+
+        return 0     
+
 
 class Variant(ModelValue):
     

@@ -7,7 +7,7 @@ import json
 sys.path.insert(0, "..")
 
 from common.base import ModelDevice, ValueDataType
-from common.components import Switch, TemperatureSensor, ModelValue, LevelSensor, Command, Variant
+from common.components import Switch, TemperatureSensor, ModelValue, LevelSensor, CommandTap, Variant
 from sparkplug.connector import NodeConnector
 from common.runner import ModelRunner
 from enum import Enum
@@ -47,10 +47,11 @@ class CoffeeMachine(ModelDevice):
         self._state_busy = Variant("1_State/Busy", self, False, ValueDataType.Boolean)
         
         # commands
-        self._cmd_switch_on = Command("2_Commands/Switch_on", self, False, lambda: self.switch_on())
-        self._cmd_switch_off = Command("2_Commands/Switch_off", self, False, lambda: self.switch_off())
-        self._cmd_switch_clean = Command("2_Commands/Clean", self, False, lambda: self.clean())
-        self._cmd_switch_order = Command("2_Commands/Order", self, False, lambda: self.order())
+        
+        self._cmd_switch_on = CommandTap("2_Commands/Switch_on", self, False, lambda v: self.switch_on(v))
+        self._cmd_switch_off = CommandTap("2_Commands/Switch_off", self, False, lambda v: self.switch_off(v))
+        self._cmd_switch_clean = CommandTap("2_Commands/Clean", self, False, lambda v: self.clean(v))
+        self._cmd_switch_order = CommandTap("2_Commands/Order", self, False, lambda v: self.order(v))
         
         # orders
         self._order_coffee = ModelValue("3_Order/Coffee", self, ValueDataType.Boolean, False, True)
@@ -135,22 +136,22 @@ class CoffeeMachine(ModelDevice):
                 self._groundstray_full.value or
                 not self._groundstray_available.value)
 
-    def switch_on(self):
+    def switch_on(self, value):
         
         if self._state == OperationState.Off:
             self._state = OperationState.ServiceRequired
         
-    def switch_off(self):
+    def switch_off(self, value):
 
         if self._state == OperationState.ServiceRequired or self._state == OperationState.Ready:
             self._state = OperationState.Off
         
-    def clean(self):
+    def clean(self, value):
         if self._state == OperationState.ServiceRequired or self._state == OperationState.Ready:
             self._state = OperationState.Cleaning
             self._t =  timer()
         
-    def order(self):
+    def order(self, value):
         if self._state == OperationState.Ready:
             self._reduce_Water()
             self._order_start()

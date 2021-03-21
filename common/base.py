@@ -99,10 +99,13 @@ class ModelValue(ModelObject):
     def update_request(self, value):
 
         if self._external_write:
-            self.value = value
+            self.update_value(value)
             return ValueAccess.OK 
             
         return ValueAccess.DENIED 
+    
+    def update_value(self, value):
+        self.value = value
     
     def add_value_changed_listener(self, listener):
         self._dispatcher.add_listener("value_changed", listener)

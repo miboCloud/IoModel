@@ -487,7 +487,7 @@ class SparkplugHelper:
 
 class SparkplugMetric:
     
-    ALIAS_COUNTER = 0
+    ALIAS_COUNTER = 10
     
     def __init__(self, parent):
         self.logger = logging.getLogger(__name__)
