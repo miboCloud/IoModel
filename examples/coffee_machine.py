@@ -227,7 +227,7 @@ if __name__ == "__main__":
     print(" ")
     print("Simulation: Kaffeemaschine, Version: " + __version__)
     print(" ")
-    print("Press Ctril + C to close the application properly. ")
+    print("Press Ctrl + C to close the application properly. ")
     print(" ")
     print("#####################################################")
     
