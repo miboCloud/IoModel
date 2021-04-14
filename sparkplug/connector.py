@@ -20,7 +20,7 @@ class NodeConnector:
     Sparkplug B.
     """
     
-    def __init__(self, model, group = "defaultGroup", mqtt_args = ("127.0.0.1", 1883, 60)):
+    def __init__(self, model, group = "defaultGroup", mqtt_args = ("127.0.0.1", 1883, 60), connect_id = None):
         """
         
 
@@ -42,13 +42,13 @@ class NodeConnector:
         
         self._group = group
         self._model = model
-        
+        self._connect_id = connect_id
         # Setup mqtt
         self._broker_ip = mqtt_args[0]
         self._broker_port = mqtt_args[1]
         self._broker_timeout = mqtt_args[2]
 
-        self._client = mqtt.Client("")
+        self._client = mqtt.Client(self._connect_id, clean_session=True)
         self._client.on_connect = self._on_connect
         self._client.on_message = self._on_message
         self._client.on_disconnect = self._on_disconnect
@@ -123,7 +123,7 @@ class NodeConnector:
         try:
             self._client.connect(self._broker_ip, self._broker_port, self._broker_timeout)
             self.logger.debug("MQTT - Connected.")
-            print("Connected")
+            print("Connected", "MQTT-ID:", self._client._client_id)
         except:
             self.logger.debug("MQTT - Connection failed")
             self.logger.warn("%s-%s Connector failed.",self.group, self._model.name)
@@ -280,7 +280,6 @@ class SparkplugBase:
         for payload_metric in payload.metrics:
             for metric in self.metrics:
                 if payload_metric.name == metric.name or payload_metric.alias == metric.alias:
-    
                     value = self.get_payload_value(payload_metric, metric.datatype)
                     metric.update_value(value)   
         
@@ -374,7 +373,7 @@ class SparkplugNode(SparkplugBase):
         
         payload = sp.getDdataPayload()
         
-        byteArray = self._metrics_to_bytearray(self.metrics, payload)
+        byteArray = self._metrics_to_bytearray(metric_list, payload)
         
         self._connector.client.publish("spBv1.0/" + self._connector.group + "/NDATA/" + self.name, byteArray, 0, False)
         
@@ -388,11 +387,12 @@ class SparkplugNode(SparkplugBase):
                  
         else:
             self.logger.debug("Consume message on device %s", device_name)
+
             try:
                 device = self._devices[device_name]
                 device.consume_device_msg(payload)
-            except:
-                self.logger.warn("Device %s is not part of node %s", device_name, self.name)
+            except Exception as e:
+                self.logger.warn("Device %s is not part of node %s", device_name, self.name, "Exception:", e)
     
     @property
     def name(self):
@@ -444,7 +444,7 @@ class SparkplugDevice(SparkplugBase):
         
         payload = sp.getDdataPayload()
         
-        byteArray = self._metrics_to_bytearray(self.metrics, payload)
+        byteArray = self._metrics_to_bytearray(metric_list, payload)
         
         self._node.connector.client.publish("spBv1.0/" + self._node.connector.group + "/DDATA/" + self._node.name + "/" + self.name, byteArray, 0, False)
         

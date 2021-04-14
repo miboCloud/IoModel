@@ -1,6 +1,21 @@
 # -*- coding: utf-8 -*-
 
-condition = True
 
-if condition:
-    print("jup")
+
+def funcA(a, b):
+    print("Do something with", a, b)
+    
+    
+def funcB():
+    print("I can do better")
+    
+    
+
+def action(fun, **args):
+    fun(*args)
+    print("it worked")
+    
+
+
+
+action(funcA, b =1, a= 2, x=5)

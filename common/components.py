@@ -75,10 +75,11 @@ class CommandTap(ModelValue):
         self._value_tapped = value_tapped
     
     def update_value(self, value):
-
-        if self._value_tapped and callable(self._value_tapped):
-            self._value_tapped(value)
-
+        try:
+            if self._value_tapped and callable(self._value_tapped):
+                self._value_tapped(value)
+        except Exception as e:
+            print("EEE:", e)
         return 0     
 
 
