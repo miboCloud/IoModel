@@ -33,6 +33,7 @@ class Plant(ModelDevice):
         self._area2 = AreaA0x("2_A02", self, ident = 2)
         self._area3 = AreaA03("3_A03", self)
         
+        self._system.areas.extend([self._area1, self._area2, self._area3])
         
         self._area3.link_infeed_331(self._area1.outfeed_cx18)
         self._area3.link_infeed_336(self._area2.outfeed_cx18)
@@ -48,18 +49,21 @@ class System(ModelDevice):
     A system consits of areas and represents the top hierarchy
     
     """
-    def __init__(self, name, parent = None):
+    def __init__(self, name, parent = None, areas = []):
         super().__init__(name, parent) 
         
-        self._on = CommandToggle("1_Cmd/SystemOn", self, False, lambda v: self._switch_on_request(v))
+        self._on = CommandTap("1_Cmd/SystemOn", self, False, lambda v: self._switch_on_request(v))
         self._error_src = Variant("ErrorSource", self, "", ValueDataType.String)
         self._error_active = Variant("ErrorActive", self, False, ValueDataType.Boolean)
-
+        self._areas = areas
 
     def _switch_on_request(self, value):
-        pass
+        for a in self._areas:
+            a.switch_on()
     
-
+    @property
+    def areas(self):
+        return self._areas
     
     def loop(self, tick):
         super().loop(tick)
@@ -93,6 +97,9 @@ class Area(ModelDevice):
         """
         for c in self._conv_list:
             c.area_state_changed(self.auto, self.on)
+
+    def switch_on(self):
+        self._area_on.value = True
 
     @property
     def on(self):

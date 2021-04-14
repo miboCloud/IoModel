@@ -16,6 +16,7 @@ from sparkplug.sparkplug_b_pb2 import Payload
 
 seqNum = 0
 bdSeq = 0
+current_bdSeq = 0
 
 class DataSetDataType:
     Unknown = 0
@@ -74,13 +75,14 @@ class ParameterDataType:
     Text = 14
 
 
-
 ######################################################################
 # Always request this before requesting the Node Birth Payload
 ######################################################################
 def getNodeDeathPayload():
+    global current_bdSeq
     payload = sparkplug.sparkplug_b_pb2.Payload()
-    addMetric(payload, "bdSeq", None, MetricDataType.Int64, getBdSeqNum())
+    current_bdSeq = getBdSeqNum()
+    addMetric(payload, "bdSeq", None, MetricDataType.Int64, current_bdSeq)
     return payload
 ######################################################################
 
@@ -89,11 +91,12 @@ def getNodeDeathPayload():
 ######################################################################
 def getNodeBirthPayload():
     global seqNum
+    global current_bdSeq
     seqNum = 0
     payload = sparkplug.sparkplug_b_pb2.Payload()
     payload.timestamp = int(round(time.time() * 1000))
     payload.seq = getSeqNum()
-    addMetric(payload, "bdSeq", None, MetricDataType.Int64, bdSeq)
+    addMetric(payload, "bdSeq", None, MetricDataType.Int64, current_bdSeq)
     return payload
 ######################################################################
 
