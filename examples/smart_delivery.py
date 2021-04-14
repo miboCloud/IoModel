@@ -16,7 +16,7 @@ from common.runner import ModelRunner
 
 class Plant(ModelDevice):
     """
-    Main Container of smart delivery factory
+    Main Container of smart delivery factory plant
     """
 
     def __init__(self, name):
