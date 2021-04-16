@@ -178,15 +178,6 @@ class ModelDataSet(ModelValue):
     def columns_count(self):
         return self._columns_count      
         
-    def append_data(self, dataset = ("Value1", "Values2"), suppress_event = False):
-        if isinstance(self.value, list):
-            if isinstance(dataset, list):
-                self.value.extend(dataset)
-            else:
-                self.value.append(dataset)
-            
-        if not suppress_event:
-            self.fire_has_changed_event()
     
     def clear_data(self, suppress_event = False):
         if isinstance(self.value, list):

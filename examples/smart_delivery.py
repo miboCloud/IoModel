@@ -9,7 +9,7 @@ import logging
 sys.path.insert(0, "..")
 
 from common.base import ModelDevice, ValueDataType
-from common.components import Switch, CommandToggle, CommandTap, Variant, VariantDataSet
+from common.components import Switch, CommandToggle, CommandTap, Variant, VariantDataMap
 from sparkplug.connector import NodeConnector
 from common.runner import ModelRunner
 
@@ -33,7 +33,7 @@ class Plant(ModelDevice):
         self._area2 = AreaA0x("2_A2","S1-A2-000-000", self, ident = 2)
         #self._area3 = AreaA03("3_A03", self)
         
-        self._system.areas.extend([self._area1, self._area2])
+        self._system.add_area(self._area1, self._area2)
         
         #self._area3.link_infeed_331(self._area1.outfeed_cx18)
         #self._area3.link_infeed_336(self._area2.outfeed_cx18)
@@ -52,11 +52,41 @@ class ErrorHandler:
         self._error_src = Variant(self._prefix + "ErrorSource", parent, "", ValueDataType.String)
         self._error_active = Variant(self._prefix + "ErrorActive", parent, False, ValueDataType.Boolean)
         self._error_msg = Variant(self._prefix +"ErrorMessage", parent, "", ValueDataType.String)
+        self._child_error_active = Variant(self._prefix + "ChildErrorActive", parent, False, ValueDataType.Boolean)
+        self._child_errors = VariantDataMap(self._prefix +"ChildErrors", parent, [("Reference Designation", ValueDataType.String),("Error MSG", ValueDataType.String)])
         self._parent_error_handler = None
     
-    def report(self, error_active, error_msg, error_src):
-        pass
+    def _add_child_error(self, error_msg, error_src):
+        self._child_errors.set_entry(error_src, (error_src, error_msg))
+        
+        if self._parent_error_handler:
+            self._parent_error_handler._add_child_error(error_msg, error_src)
+            
+        self._child_error_active.value = self._child_errors.map_count > 0
     
+    def _remove_child_error(self, error_src):
+        self._child_errors.del_entry(error_src)
+        
+        if self._parent_error_handler:
+            self._parent_error_handler._remove_child_error(error_src)
+            
+        self._child_error_active.value = self._child_errors.map_count > 0
+    
+    def set_error(self, error_msg, error_src):
+        self._error_active.value = True
+        self._error_src.value = error_src
+        self._error_msg.value = error_msg
+        
+        if self._parent_error_handler:
+            self._parent_error_handler._add_child_error(error_msg, error_src)
+        
+    def clear_error(self):
+        if self._parent_error_handler:
+            self._parent_error_handler._remove_child_error(self._error_src.value)
+            
+        self._error_active.value = False
+        self._error_src.value = ""
+        self._error_msg.value = ""
     
     def link_to_parent(self, parent_error_handler):
         self._parent_error_handler = parent_error_handler
@@ -76,11 +106,9 @@ class System(ModelDevice):
         self._error_handler = ErrorHandler(self)
         self._reference_designation = Variant("ReferenceDesignation", self, reference_designation, ValueDataType.String)
         self._type = Variant("Type", self, "System", ValueDataType.String)
-        dataset = VariantDataSet("MeineDaten", self, [("Name", ValueDataType.String), ("ALter", ValueDataType.Int)])
         
-        dataset.append_data(("Michael", 35), ("Joana", 30))
         
-        self._on = CommandTap("Cmd_SystemOnTap", self, False, lambda v: self._switch_on_request(v))
+        self._on = CommandTap("Cmd_SystemOn_Tap", self, False, lambda v: self._switch_on_request(v))
 
         self._areas = []
 
@@ -125,8 +153,8 @@ class Area(ModelDevice):
  
         self._conv_list = []
 
-        self._area_on = CommandToggle("Cmd_AreaOnToggle", self, False, lambda v: self._area_state_changed(v) )
-        self._auto = CommandToggle("Cmd_ModeAutoToggle", self, True, lambda v: self._area_state_changed(v))
+        self._area_on = CommandToggle("Cmd_AreaOn_Toggle", self, False, lambda v: self._area_state_changed(v) )
+        self._auto = CommandToggle("Cmd_ModeAuto_Toggle", self, True, lambda v: self._area_state_changed(v))
         
     @property
     def error_handler(self):
@@ -137,7 +165,7 @@ class Area(ModelDevice):
         return self._reference_designation.value
     
     def add_sim_box(self, conv):
-        CommandTap("Sim/AddBox_" + conv.name, self, False, lambda v: print("hh"))
+        CommandTap("Sim/AddBox_" + conv.name + "_Tap", self, False, lambda v: print("hh"))
     
     def _area_state_changed(self, value):
         """
@@ -250,6 +278,7 @@ class Conveyor:
         self._area = area
         
         self._error_handler = ErrorHandler(area, name)
+        self._error_handler.link_to_parent(area.error_handler)
         self._reference_designation = Variant(name + "/ReferenceDesignation", area, reference_designation, ValueDataType.String)
         self._type = Variant(name + "/Type", area, "Conveyor", ValueDataType.String)
         
@@ -263,29 +292,21 @@ class Conveyor:
         self._transport_handler.on_request_source = self._on_request_source
         self._transport_handler.on_request_target = self._on_request_target
         # data points
-        self._reset_error = CommandTap(name + "/Cmd_ResetErrorTap", area, False, lambda v: self._reset_error_request())
-        self._error_active = Variant(name + "/ErrorActive", area, False, ValueDataType.Boolean)
-        self._error_src = Variant(name + "/ErrorSource", area, "", ValueDataType.String)
-        self._error_msg = Variant(name + "/ErrorMessage", area, "", ValueDataType.String)
+        self._reset_error = CommandTap(name + "/Cmd_ResetError_Tap", area, False, lambda v: self._reset_error_request())
+
         
         self._photoeye = Switch(name + "/Photoeye", area, False, False)
         
-        CommandTap(name + "/Sim/DriveErrorTap", area, False, lambda v: self.sim_drive_error())
-        
         self._drive = Drive(name, "Drive", reference_designation[0:-3] + "D01", speed, area)
         self._drive.error_handler.link_to_parent(self.error_handler)
-    
-    def sim_drive_error(self):
-        error = self._drive.sim_error()
-    
-        self._error_active.value = error[0]
-        self._error_msg.value = error[1]
-        self._error_src.value = error[2]
-    
+        
+        CommandTap(name + "/Sim/DriveErrorTap", area, False, lambda v: self._drive.sim_error())
+        CommandTap(name + "/Sim/JamErrorTap", area, False, lambda v: self.sim_jam_error())
+        
     
     @property
     def reference_designation(self):
-        return self._ref_des.value
+        return self._reference_designation.value
 
     @property
     def error_handler(self):
@@ -307,12 +328,16 @@ class Conveyor:
     def transport_handler(self):
         return self._transport_handler
     
+    def sim_jam_error(self):
+        self._error_handler.set_error("Jam", self._reference_designation.value)
+    
     def set_adjacent(self, source = None, target=None):
         self._source = source
         self._target = target
     
     def _reset_error_request(self):
         self._drive.reset_error()
+        self.error_handler.clear_error()
         
     def _on_request_target(self):
         if self.target:
@@ -375,12 +400,12 @@ class Drive:
 
     def __init__(self, parent_name, name,reference_designation, speed = 100, parent = None):
         
-        self._manual_on = CommandToggle(parent_name + "/" + name + "/Cmd_ManualOnToggle", parent, False, None, condition = lambda: self.manual_mode)
+        self._manual_on = CommandToggle(parent_name + "/" + name + "/Cmd_ManualOn_Toggle", parent, False, None, condition = lambda: self.manual_mode)
         self._speed = speed
         self._manual_mode = Switch(parent_name + "/" + name + "/ManualMode", parent, False, False)
         self._drive_on = Switch(parent_name + "/" + name + "/DriveOn", parent, False, False)
-        self._error = Switch(parent_name + "/" + name + "/Error", parent, False, False)
-        self._ref_des = Variant(parent_name + "/" + name + "/ReferenceDesignation", parent, reference_designation, ValueDataType.String)
+        
+        
         self._drive_speed = Variant(parent_name + "/" + name + "/DriveSpeed", parent, 0, ValueDataType.Int)
         self._drive_current = Variant(parent_name + "/" + name + "/DriveCurrent", parent, 0.0, ValueDataType.Float)
         self._drive_encoder = Variant(parent_name + "/" + name + "/DriveEncoder", parent, 0.0, ValueDataType.Float)
@@ -388,7 +413,9 @@ class Drive:
         self._error_handler = ErrorHandler(parent, parent_name + "/" + name)
         self._reference_designation = Variant(parent_name + "/" + name + "/ReferenceDesignation", parent, reference_designation, ValueDataType.String)
         self._type = Variant(parent_name + "/" + name + "/Type", parent, "Drive", ValueDataType.String)
-         
+        
+      
+        
     @property
     def reference_designation(self):
         return self._ref_des.value
@@ -405,10 +432,6 @@ class Drive:
     def manual_mode(self):
         return self._manual_mode.value
     
-    @property
-    def error(self):
-        return self._error.value
-    
     @manual_mode.setter
     def manual_mode(self, value):
         self._manual_mode.value = value
@@ -418,11 +441,10 @@ class Drive:
         self._manual_on.value = False
         
     def reset_error(self):
-        self._error.value = False
+        self._error_handler.clear_error()
         
     def sim_error(self):
-        self._error.value = True
-        return (True, "Overcurrent", self._ref_des.value)
+        self._error_handler.set_error("Overcurrent", self._reference_designation.value)
 
     def loop(self, tick, run_auto):
         
@@ -475,7 +497,7 @@ class TransportHandler:
         self._run_drive = False
         
         # data points
-        self._cmd_interrupt = CommandToggle(parent_name + "/Cmd_InterruptToggle", parent, False)
+        self._cmd_interrupt = CommandToggle(parent_name + "/Cmd_Interrupt_Toggle", parent, False)
         self._length = Variant(parent_name + "/Length", parent, length, ValueDataType.Int)
         self._box_position = Variant(parent_name + "/BoxPosition", parent, False, ValueDataType.Float)
         self._box_id = Variant(parent_name + "/BoxId", parent, "", ValueDataType.String)

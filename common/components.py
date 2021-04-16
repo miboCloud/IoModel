@@ -96,6 +96,43 @@ class VariantDataSet(ModelDataSet):
     def __init__(self, name = "defaultModel", parent = None, columns = [("Column1", ValueDataType.Int), ("Column2", ValueDataType.String)]):
         super().__init__(name, parent, columns)
         self.logger = logging.getLogger(__name__)
+        
+    def append_data(self, dataset = ("Value1", "Values2"), suppress_event = False):
+        if isinstance(self.value, list):
+            if isinstance(dataset, list):
+                self.value.extend(dataset)
+            else:
+                self.value.append(dataset)
+            
+        if not suppress_event:
+            self.fire_has_changed_event()
+        
+class VariantDataMap(ModelDataSet):
+    
+    def __init__(self, name = "defaultModel", parent = None, columns = [("Column1", ValueDataType.Int), ("Column2", ValueDataType.String)]):
+        super().__init__(name, parent, columns)
+        self.logger = logging.getLogger(__name__)
+        self._map = {}
+        
+    def set_entry(self, key, data = ("key", "data1", "data2"), suppress_event = False):
+        self._map[key] = data
+        self.value = list(self._map.values())
+        
+        if not suppress_event:
+            self.fire_has_changed_event()
+       
+    def del_entry(self, key, suppress_event = False):
+        if key in self._map:
+            del self._map[key]
+            self.value = list(self._map.values())
+            
+            if not suppress_event:
+                self.fire_has_changed_event()
+    @property       
+    def map_count(self):
+        return len(self._map)
+            
+        
 
 class Switch(ModelValue):
     
