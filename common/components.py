@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from common.base import ModelValue, ValueDataType
+from common.base import ModelValue, ModelDataSet, ValueDataType
 from common.util_math import PT1
 import logging
 
@@ -88,8 +88,14 @@ class Variant(ModelValue):
     def __init__(self, name = "defaultModel", parent = None, initial = False, datatype = ValueDataType.Int, external_write = False):
         super().__init__(name, parent, datatype, initial, external_write)
         self.logger = logging.getLogger(__name__)
-     
 
+
+
+class VariantDataSet(ModelDataSet):
+    
+    def __init__(self, name = "defaultModel", parent = None, columns = [("Column1", ValueDataType.Int), ("Column2", ValueDataType.String)]):
+        super().__init__(name, parent, columns)
+        self.logger = logging.getLogger(__name__)
 
 class Switch(ModelValue):
     

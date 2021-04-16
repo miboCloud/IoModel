@@ -376,7 +376,7 @@ class MetricHelper:
         self._invoke_method = invoke_method
         self._property_list = property_list
         
-    def add_property(self, prop):
+    def add_property(self, prop = ("myProp", "MyValue", sparkplug.ParameterDataType.String)):
         if self._property_list is None:
             self._property_list = []
             

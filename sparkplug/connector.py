@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from common.base import ModelDevice, ModelValue, ValueDataType
+from common.base import ModelDevice, ModelValue, ModelDataSet, ValueDataType
 from timeit import default_timer as timer
 
 import sys
@@ -294,10 +294,57 @@ class SparkplugBase:
             else:
                 name = None
                 
-            sp.addMetric(payload, name, metric.alias, metric.datatype, metric.value)
-      
+            if isinstance(metric, SparkplugDataSetMetric):
+                if not isinstance(metric.value, list):
+                    raise Exception("SparkplugDataSetMetric has no list as value")
+                
+                column_names = [c[0] for c in metric.columns]
+                column_data_types = [c[1] for c in metric.columns]
+                columns_count = metric.columns_count
+
+                dataset = sp.initDatasetMetric(payload, name, metric.alias, column_names, column_data_types)   
+                
+                for data_entry in metric.value:
+                    row = dataset.rows.add()
+                    for data_idx in range(columns_count):
+                        element = row.elements.add()
+                        self._set_element_value(element, data_entry[data_idx], column_data_types[data_idx])
+
+            else:
+                sp.addMetric(payload, name, metric.alias, metric.datatype, metric.value)     
+
         return bytearray(payload.SerializeToString())
         
+    def _set_element_value(self, element, value, datatype):
+        if (datatype == sp.MetricDataType.Int8 or
+            datatype == sp.MetricDataType.Int16 or
+            datatype == sp.MetricDataType.Int32 or
+            datatype == sp.MetricDataType.Int64 or
+            datatype == sp.MetricDataType.UInt8 or
+            datatype == sp.MetricDataType.UInt16 or
+            datatype == sp.MetricDataType.UInt32 or
+            datatype == sp.MetricDataType.UInt64) :
+            
+            element.int_value = value
+        
+        elif datatype == sp.MetricDataType.Float:
+            
+            element.float_value = value
+        
+        elif datatype == sp.MetricDataType.Double:
+            
+            element.double_value = value
+        
+        elif datatype == sp.MetricDataType.Boolean:
+            
+            element.boolean_value = value
+        
+        elif datatype == sp.MetricDataType.String:
+            
+           element.string_value = value
+        else:
+            raise Exception("Cannot write Value for Datatype:", datatype)
+  
     def _publish_queue(self):
         """
         Publish all queued metrics and clear queue
@@ -384,7 +431,6 @@ class SparkplugNode(SparkplugBase):
             self.logger.debug("Consume message on node")
             self.consume_metrics(payload)
             
-                 
         else:
             self.logger.debug("Consume message on device %s", device_name)
 
@@ -461,7 +507,9 @@ class SparkplugDevice(SparkplugBase):
     def _build_metrics(self):
         
         for metric in self.model.children:
-            if isinstance(metric, ModelValue):
+            if isinstance(metric, ModelDataSet):
+                self.metrics.append(SparkplugDataSetMetric(self, metric))
+            elif isinstance(metric, ModelValue):
                 self.metrics.append(SparkplugValueMetric(self, metric))
             else:
                 raise Exception("Device found on device children")
@@ -481,6 +529,8 @@ class SparkplugHelper:
             return sp.MetricDataType.Bytes
         elif value_data_type == ValueDataType.String:
             return sp.MetricDataType.String
+        elif value_data_type == ValueDataType.DataSet:
+            return sp.MetricDataType.DataSet
   
         return sp.MetricDataType.Unknown
 
@@ -561,7 +611,23 @@ class SparkplugValueMetric(SparkplugMetric):
     
     def _value_has_changed(self, callback, source):
         self.parent.queue_publishData(self)
+
     
+class SparkplugDataSetMetric(SparkplugValueMetric):
+    
+    def __init__(self, parent, model_io):
+        super().__init__(parent, model_io)
+        self.logger = logging.getLogger(__name__)
+        
+    @property
+    def columns(self):
+        return [(c[0], SparkplugHelper.translate_datatype(c[1])) for c in self._model_io.columns]
+    
+    @property
+    def columns_count(self):
+        return self._model_io.columns_count      
+        
+
 class SparkplugInternalMetric(SparkplugMetric):
     
     def __init__(self, parent, name, datatype, initial, invoke_method = None):

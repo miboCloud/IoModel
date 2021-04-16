@@ -14,7 +14,8 @@ class ValueDataType(Enum):
     Float = 2,
     Boolean = 3,
     String = 4,
-    Bytes = 5
+    Bytes = 5,
+    DataSet = 9
 
 
 class ModelObject:
@@ -81,6 +82,7 @@ class ModelDevice(ModelObject):
     
 
 
+
    # TODO ModelValue?
 class ModelValue(ModelObject):
     
@@ -138,9 +140,9 @@ class ModelValue(ModelObject):
     def value(self, value):
 
         if self._value != value:
-            callback = CallbackValueChanged(self._value, value)
+            old_value = self._value
             self._value = value
-            self._dispatcher.fire("value_changed", callback, self)
+            self.fire_has_changed_event(old_value, value)
 
     @property
     def unit(self):
@@ -154,5 +156,41 @@ class ModelValue(ModelObject):
     def min(self):
         return None
     
-    
+    def fire_has_changed_event(self, old_value = None, new_value = None):
+        callback = CallbackValueChanged(old_value, new_value)
+        self._dispatcher.fire("value_changed", callback, self)
 
+
+
+class ModelDataSet(ModelValue):
+    
+    def __init__(self, name, parent, columns = [("Column1", ValueDataType.Int), ("Column2", ValueDataType.String)]):
+        super().__init__(name, parent, ValueDataType.DataSet, [], False)
+        
+        self._columns_count = len(columns)
+        self._columns = columns
+    
+    @property
+    def columns(self):
+        return self._columns    
+
+    @property
+    def columns_count(self):
+        return self._columns_count      
+        
+    def append_data(self, dataset = ("Value1", "Values2"), suppress_event = False):
+        if isinstance(self.value, list):
+            if isinstance(dataset, list):
+                self.value.extend(dataset)
+            else:
+                self.value.append(dataset)
+            
+        if not suppress_event:
+            self.fire_has_changed_event()
+    
+    def clear_data(self, suppress_event = False):
+        if isinstance(self.value, list):
+            self.value.clear()
+
+        if not suppress_event:
+            self.fire_has_changed_event()    
