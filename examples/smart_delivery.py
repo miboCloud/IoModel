@@ -312,6 +312,14 @@ class AreaA03(Area):
         self.c336 = Conveyor("336", "S1-A3-336-000", self)
         c337 = Conveyor("337", "S1-A3-337-000", self)
         c338 = Conveyor("338", "S1-A3-338-000", self)
+        c339 = Conveyor("339", "S1-A3-339-000", self)
+        c340 = Conveyor("340", "S1-A3-340-000", self)
+        c341 = Conveyor("341", "S1-A3-341-000", self)
+        c342 = Conveyor("342", "S1-A3-342-000", self)
+        c343 = Conveyor("343", "S1-A3-343-000", self)
+        c344 = Conveyor("344", "S1-A3-344-000", self)
+        
+        c390 = Stappler("390", "S1-A3-390-000", self)
         
         self.c331.set_adjacent(None, c332)
         c332.set_adjacent(self.c331, c333)
@@ -321,6 +329,13 @@ class AreaA03(Area):
         self.c336.set_adjacent(None, c335)
         c337.set_adjacent(c333, c338)
         c338.set_adjacent(c337, None)
+        
+        c339.set_adjacent(None, c340)
+        c340.set_adjacent(c339, c341)
+        c341.set_adjacent(c340, c342)
+        c342.set_adjacent(c341, c343)
+        c343.set_adjacent(c342, c344)
+        c344.set_adjacent(c343, None)
         
         self.add_conveyor(self.c331, c332, c333, c334, c335, self.c336, c337, c338)
         
@@ -332,7 +347,93 @@ class AreaA03(Area):
         conv.set_target(self.c336)
         self.c336.set_source(conv)
 
+class Stappler:
     
+    def __init__(self, name, reference_designation, area = None, height = 5000):
+        self._name = name
+
+        self._area = area
+        self._error_handler = ErrorHandler(area, name)
+        self._error_handler.link_to_parent(area.error_handler)
+        self._reference_designation = Variant(name + "/ReferenceDesignation", area, reference_designation, ValueDataType.String)
+        
+        self._switch_on = CommandToggle(name + "/Cmd_Enable_Toggle", area, True)
+        self._abort = CommandTap(name + "/Cmd_AbortStack_Tap", area, False)
+        
+        self._manual_up = CommandToggle(name + "/Cmd_ManualUp_Toggle", area, False)
+        self._manual_down = CommandToggle(name + "/Cmd_ManualDown_Toggle", area, False)
+        self._clamps = CommandToggle(name + "/Cmd_ManualClamps_Toggle", area, False)
+        
+        self._infeed_conveyor = Conveyor(name + "/InfeedConv", reference_designation, area, 1000, 200)
+        self._infeed_conveyor.transport_handler.on_request_source = self._on_request_source
+        self._infeed_conveyor.transport_handler.on_request_target = self._on_request_target
+    
+        self._op_hours = Variant(name + "/OpHours", area, 1654, ValueDataType.Float)
+        self._box_counter = Variant(name + "/BoxCounter", area, 0, ValueDataType.Int)
+        self._lift_table_top = Switch(name + "/LiftTableTop", area, False, False)
+        self._lift_table_bottom = Switch(name + "/LiftTableBottom", area, False, False)
+        self._lift_table_occ = Switch(name + "/LiftTableOccupied", area, False, False)
+    
+    def area_state_changed(self, mode_auto, switched_on):
+        self._infeed_conveyor.area_state_changed(mode_auto, switched_on)
+        """
+        if mode_auto:
+            self._drive.manual_mode = False
+        else:
+            self._drive.manual_mode = True
+           """ 
+        if switched_on:
+            pass
+        
+    @property
+    def reference_designation(self):
+        return self._reference_designation.value
+
+    @property
+    def name(self):
+        return self._name
+    
+    @property
+    def conveyor(self):
+        return self._infeed_conveyor
+    
+    @property
+    def error_handler(self):
+        return self._error_handler    
+    
+    def _on_request_target(self):
+        if self._next_target:
+                return self._next_target.transport_handler
+        return None
+    
+    def _on_request_source(self):
+        if self._next_source:
+            return self._next_source.transport_handler
+        return None
+    
+    @property
+    def released(self):
+        """
+        Describes whenever the conveyor is released for transportation
+
+        """
+        if not self._area.auto:
+            return False
+        
+        if not self._area.on:
+            return False
+        
+        if self.error_handler.error_pending:
+            return False
+        
+        if self._infeed_conveyor.error_handler.error_pending:
+            return False
+        
+        return True
+    
+    def loop(self, tick):
+        pass
+
 class Lift:
     """
     A Lift module with a single drive
@@ -345,6 +446,7 @@ class Lift:
         
         self._error_handler = ErrorHandler(area, name)
         self._error_handler.link_to_parent(area.error_handler)
+        self._reference_designation = Variant(name + "/ReferenceDesignation", area, reference_designation, ValueDataType.String)
         
         self._move_fast = CommandToggle(name + "/Cmd_MoveFast_Toggle", area, True, lambda v: self._change_speed_request())
         self._reset_error = CommandTap(name + "/Cmd_ResetError_Tap", area, False, lambda v: self._reset_error_request())
