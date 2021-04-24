@@ -267,7 +267,7 @@ if __name__ == "__main__":
     
     # Setup Sparkplug connection
     broker_args = (host, port, 60)
-    coffeeNode = NodeConnector(coffee, group, broker_args)
+    coffeeNode = NodeConnector(coffee, group, broker_args, node)
     coffeeNode.start_loop()
 
     try:
