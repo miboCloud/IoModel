@@ -319,7 +319,7 @@ class AreaA03(Area):
         c343 = Conveyor("343", "S1-A3-343-000", self)
         c344 = Conveyor("344", "S1-A3-344-000", self)
         
-        c390 = Stappler("390", "S1-A3-390-000", self)
+        c390 = Stapler("390", "S1-A3-390-000", self)
         
         self.c331.set_adjacent(None, c332)
         c332.set_adjacent(self.c331, c333)
@@ -328,16 +328,19 @@ class AreaA03(Area):
         c335.set_adjacent(self.c336, c334)
         self.c336.set_adjacent(None, c335)
         c337.set_adjacent(c333, c338)
-        c338.set_adjacent(c337, None)
-        
-        c339.set_adjacent(None, c340)
+        c338.set_adjacent(c337, c390.infeed_conveyor)
+        c390.set_adjacent(c338, c339)
+        c339.set_adjacent(c390.lift_table_conveyor, c340)
         c340.set_adjacent(c339, c341)
         c341.set_adjacent(c340, c342)
         c342.set_adjacent(c341, c343)
         c343.set_adjacent(c342, c344)
         c344.set_adjacent(c343, None)
         
-        self.add_conveyor(self.c331, c332, c333, c334, c335, self.c336, c337, c338)
+        c344.auto_clear = True
+        
+        self.add_conveyor(self.c331, c332, c333, c334, c335, self.c336, c337, 
+                          c338, c390, c339, c340, c341, c342, c343, c344)
         
     def link_infeed_331(self, conv):
         conv.set_target(self.c331)
@@ -347,7 +350,7 @@ class AreaA03(Area):
         conv.set_target(self.c336)
         self.c336.set_source(conv)
 
-class Stappler:
+class Stapler:
     
     def __init__(self, name, reference_designation, area = None, height = 5000):
         self._name = name
@@ -358,33 +361,63 @@ class Stappler:
         self._reference_designation = Variant(name + "/ReferenceDesignation", area, reference_designation, ValueDataType.String)
         
         self._switch_on = CommandToggle(name + "/Cmd_Enable_Toggle", area, True)
-        self._abort = CommandTap(name + "/Cmd_AbortStack_Tap", area, False)
-        
-        self._manual_up = CommandToggle(name + "/Cmd_ManualUp_Toggle", area, False)
-        self._manual_down = CommandToggle(name + "/Cmd_ManualDown_Toggle", area, False)
+        self._abort = CommandTap(name + "/Cmd_AbortStack_Tap", area, False, lambda v: self.abort_request())
+        self._manual = False
+        self._manual_up = CommandToggle(name + "/Cmd_ManualUp_Toggle", area, False, condition = lambda: self._manual)
+        self._manual_down = CommandToggle(name + "/Cmd_ManualDown_Toggle", area, False, condition = lambda: self._manual)
         self._clamps = CommandToggle(name + "/Cmd_ManualClamps_Toggle", area, False)
         
         self._infeed_conveyor = Conveyor(name + "/InfeedConv", reference_designation, area, 1000, 200)
-        self._infeed_conveyor.transport_handler.on_request_source = self._on_request_source
-        self._infeed_conveyor.transport_handler.on_request_target = self._on_request_target
-    
+        self._lift_table_conveyor = Conveyor(name + "/LiftTableConv", reference_designation, area, 1000, 200)
+        self._lift_table_conveyor.transport_handler = TransportHandlerStapler(self._lift_table_conveyor.name, area)
+        self._lift_table_conveyor.transport_handler.on_request_source = self._lift_table_conveyor._on_request_source
+        self._lift_table_conveyor.transport_handler.on_request_target = self._lift_table_conveyor._on_request_target
+        
         self._op_hours = Variant(name + "/OpHours", area, 1654, ValueDataType.Float)
         self._box_counter = Variant(name + "/BoxCounter", area, 0, ValueDataType.Int)
         self._lift_table_top = Switch(name + "/LiftTableTop", area, False, False)
-        self._lift_table_bottom = Switch(name + "/LiftTableBottom", area, False, False)
+        self._lift_table_bottom = Switch(name + "/LiftTableBottom", area, True, False)
         self._lift_table_occ = Switch(name + "/LiftTableOccupied", area, False, False)
+        self._stapler_prev = None
+        self._stapler_next = None
+        self._outfeed = False
+        
+        self._abort = False
+
+        self._lift_counter = 0
+        
+        self._store_up = False
+        self._store_down = True
+        self._infeed_conveyor.set_adjacent(None, self._lift_table_conveyor)
+        self._lift_table_conveyor.set_adjacent(self._infeed_conveyor, None)
+        
+    
+    def abort_request(self):
+        self._abort = True
     
     def area_state_changed(self, mode_auto, switched_on):
         self._infeed_conveyor.area_state_changed(mode_auto, switched_on)
-        """
+        self._lift_table_conveyor.area_state_changed(mode_auto, switched_on)
+        
         if mode_auto:
-            self._drive.manual_mode = False
+            self._manual_up.value = False
+            self._manual_down.value = False
+            self._lift_table_top.value = self._store_up
+            self._lift_table_bottom.value = self._store_down
         else:
-            self._drive.manual_mode = True
-           """ 
+            self._store_down = self._lift_table_bottom.value
+            self._store_up = self._lift_table_top.value
+        
+        self._manual = not mode_auto
+           
         if switched_on:
             pass
+    
+    def set_adjacent(self, source, target):
         
+        self._stapler_prev = source
+        self._stapler_next = target
+    
     @property
     def reference_designation(self):
         return self._reference_designation.value
@@ -394,22 +427,17 @@ class Stappler:
         return self._name
     
     @property
-    def conveyor(self):
+    def infeed_conveyor(self):
         return self._infeed_conveyor
+    
+    @property
+    def lift_table_conveyor(self):
+        return self._lift_table_conveyor
     
     @property
     def error_handler(self):
         return self._error_handler    
     
-    def _on_request_target(self):
-        if self._next_target:
-                return self._next_target.transport_handler
-        return None
-    
-    def _on_request_source(self):
-        if self._next_source:
-            return self._next_source.transport_handler
-        return None
     
     @property
     def released(self):
@@ -432,7 +460,58 @@ class Stappler:
         return True
     
     def loop(self, tick):
-        pass
+        
+        self._infeed_conveyor.loop(tick)
+        self._lift_table_conveyor.loop(tick)
+        
+        if not self._switch_on.value or self._manual:
+            self._infeed_conveyor.set_adjacent(None, self._lift_table_conveyor)
+            self._lift_table_conveyor.set_adjacent(self._infeed_conveyor, None)
+            
+            if self._manual_up.value:
+                self._lift_table_top.value = True
+                self._lift_table_bottom.value = False
+            elif self._manual_down.value:
+                self._lift_table_top.value = False
+                self._lift_table_bottom.value = True
+                
+            return
+        
+
+        if self._box_counter.value < 4:
+            self._infeed_conveyor.set_source(self._stapler_prev)
+            self._lift_table_conveyor.set_target(None)
+            
+        elif not self._outfeed or self._abort:
+            self._outfeed = True
+            self._abort = False
+            self._infeed_conveyor.set_source(None)
+            self._lift_table_conveyor.set_target(self._stapler_next)
+            self._lift_table_conveyor.transport_handler.insert_new_box()
+            
+            
+        if self._lift_table_top.value:
+            self._lift_counter = self._lift_counter + 1
+            if self._lift_counter >= 2:
+                self._lift_table_top.value = False
+                self._lift_table_bottom.value = True
+                self._lift_table_conveyor.set_source(self._infeed_conveyor)
+            
+        if self._lift_table_conveyor.transport_handler.ready_handover and not self._outfeed:
+            self._lift_table_conveyor.set_source(None)
+            self._lift_table_conveyor.transport_handler.remove_box()
+            self._box_counter.value = self._box_counter.value + 1
+            self._lift_table_top.value = True
+            self._lift_table_bottom.value = False
+            self._lift_counter = 0
+             
+        if self._outfeed:
+            if self._lift_table_conveyor.empty:
+                self._outfeed = False
+                self._box_counter.value = 0
+                
+        self._lift_table_occ.value = not self._lift_table_conveyor.empty
+        
 
 class Lift:
     """
@@ -459,6 +538,11 @@ class Lift:
         self._drive = DrivePos(name, "LiftDrive", reference_designation[0:-3] + "D02", self._speed_fast, area)
         self._drive.error_handler.link_to_parent(self.error_handler)
         self._drive.encoder = height / 2
+        
+        Switch(name + "/GapCheck_1", area, False, False)
+        Switch(name + "/GapCheck_2", area, False, False)
+        self._in_motion = Switch(name + "/InPosition", area, False, False)
+        self._in_position = Switch(name + "/InMotion", area, False, False)
         
         self._next_source = None
         self._next_target = None 
@@ -553,7 +637,9 @@ class Lift:
         self._lift_logic(tick)
         
         self._drive.run(tick, self.released)
-
+        
+        self._in_motion.value = self._drive.busy
+        self._in_position.value = not self._drive.busy
     
     @property
     def released(self):
@@ -604,6 +690,9 @@ class Conveyor:
         self._drive = Drive(name, "Drive", reference_designation[0:-3] + "D01", speed, area)
         self._drive.error_handler.link_to_parent(self.error_handler)
         
+        self._auto_clear = CommandToggle(name + "/Sim/AutoClear_Toggle", area, False)
+        self._counter = 0
+        
         CommandTap(name + "/Sim/AddBox_Tap", area, False, lambda v: self.transport_handler.insert_new_box())
         CommandTap(name + "/Sim/DriveErrorTap", area, False, lambda v: self._drive.sim_error())
         CommandTap(name + "/Sim/JamErrorTap", area, False, lambda v: self.sim_jam_error())
@@ -621,6 +710,14 @@ class Conveyor:
         return self._name
     
     @property
+    def auto_clear(self):
+        return self._auto_clear.value
+    
+    @auto_clear.setter
+    def auto_clear(self, value):
+        self._auto_clear.value = value
+    
+    @property
     def source(self):
         return self._source
     
@@ -632,6 +729,10 @@ class Conveyor:
     def transport_handler(self):
         return self._transport_handler
     
+    @transport_handler.setter
+    def transport_handler(self, value):
+        self._transport_handler = value
+    
     @property
     def empty(self):
         return not self._transport_handler.box 
@@ -640,10 +741,10 @@ class Conveyor:
         self._error_handler.set_error("Jam", self._reference_designation.value)
         
     def set_source(self, source):
-        self._source = source
+        self.set_adjacent(source, self._target)
         
     def set_target(self, target):
-        self._target = target
+        self.set_adjacent(self._source, target)
     
     def _reset_error_request(self):
         self._drive.error_handler.clear_error()
@@ -651,7 +752,8 @@ class Conveyor:
     
     def set_adjacent(self, source = None, target=None):
         self._source = source
-        self._target = target    
+        self._target = target   
+        self.transport_handler.clear_links()
     
     def _on_request_target(self):
         if self.target:
@@ -684,6 +786,15 @@ class Conveyor:
 
         # update signals
         self._photoeye.value = self.transport_handler.box_found_at(self._length / 2)
+        
+        if self.auto_clear:
+            if self.transport_handler.ready_handover:
+                self._counter = self._counter + tick
+                elapsed = self._counter >= 3
+                
+                if elapsed:
+                    self._counter = 0
+                    self.transport_handler.remove_box()
   
     
     @property
@@ -900,7 +1011,7 @@ class TransportHandler:
         self._ready_handover = Switch(parent_name + "/ReadyHandover", parent, False, False)
         self._ready_takeover = Switch(parent_name + "/ReadyTakeover", parent, True, False)
         self._source_name = Variant(parent_name + "/SourceName", parent, "", ValueDataType.String)
-        self._target_name = Variant(parent_name + "/TagetName", parent, "", ValueDataType.String)
+        self._target_name = Variant(parent_name + "/TargetName", parent, "", ValueDataType.String)
      
     @property
     def parent_name(self):
@@ -1002,12 +1113,23 @@ class TransportHandler:
             return (box, pos - self.length)
         else:
             return None
+        
+    def takeover_process(self):
+        box_values = self.source.takeover_box()
+        if box_values:
+            self.occupied = True
+            self._box = box_values[0]
+            self.box_position = box_values[1]
+            self.clear_links()
     
     def request_transport(self, source):
         if self.box:
             return False
         
         if not self.ready_takeover:
+            return False
+        
+        if self.source != source:
             return False
         
         if source.takeover_box():
@@ -1113,12 +1235,7 @@ class TransportHandler:
             if self.source:
                 if self.ready_takeover:
                     if self.source.ready_handover:
-                        box_values = self.source.takeover_box()
-                        if box_values:
-                            self.occupied = True
-                            self._box = box_values[0]
-                            self.box_position = box_values[1]
-                            self.clear_links()
+                        self.takeover_process()
                         
         # update cyclic data
         if self.box:
@@ -1127,7 +1244,14 @@ class TransportHandler:
             self._box_id.value = ""
             
         self._ready_handover.value = self.ready_handover
-  
+
+    
+class TransportHandlerStapler(TransportHandler):
+    def __init__(self, parent_name, parent):
+        super().__init__(parent_name, parent)
+        
+    def takeover_process(self):
+        super().takeover_process()
 
 if __name__ == "__main__":
     print("Start Application, Arguments({}): {}".format(len(sys.argv)-1, sys.argv[1:]))
