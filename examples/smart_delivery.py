@@ -369,9 +369,7 @@ class Stapler:
         
         self._infeed_conveyor = Conveyor(name + "/InfeedConv", reference_designation, area, 1000, 200)
         self._lift_table_conveyor = Conveyor(name + "/LiftTableConv", reference_designation, area, 1000, 200)
-        self._lift_table_conveyor.transport_handler = TransportHandlerStapler(self._lift_table_conveyor.name, area)
-        self._lift_table_conveyor.transport_handler.on_request_source = self._lift_table_conveyor._on_request_source
-        self._lift_table_conveyor.transport_handler.on_request_target = self._lift_table_conveyor._on_request_target
+    
         
         self._op_hours = Variant(name + "/OpHours", area, 1654, ValueDataType.Float)
         self._box_counter = Variant(name + "/BoxCounter", area, 0, ValueDataType.Int)
@@ -1245,13 +1243,6 @@ class TransportHandler:
             
         self._ready_handover.value = self.ready_handover
 
-    
-class TransportHandlerStapler(TransportHandler):
-    def __init__(self, parent_name, parent):
-        super().__init__(parent_name, parent)
-        
-    def takeover_process(self):
-        super().takeover_process()
 
 if __name__ == "__main__":
     print("Start Application, Arguments({}): {}".format(len(sys.argv)-1, sys.argv[1:]))
