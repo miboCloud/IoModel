@@ -14,6 +14,8 @@ from sparkplug.connector import NodeConnector
 from common.runner import ModelRunner
 
 
+__version__ = "2.1.1"
+
 class Plant(ModelDevice):
     """
     Main Container of smart delivery factory plant
@@ -751,7 +753,9 @@ class Conveyor:
     def set_adjacent(self, source = None, target=None):
         self._source = source
         self._target = target   
-        self.transport_handler.clear_links()
+        if ((self._source != source) or
+            (self._target != target)):
+            self.transport_handler.clear_links()
     
     def _on_request_target(self):
         if self.target:
@@ -1245,7 +1249,16 @@ class TransportHandler:
 
 
 if __name__ == "__main__":
+    
     print("Start Application, Arguments({}): {}".format(len(sys.argv)-1, sys.argv[1:]))
+    
+    print("#####################################################")
+    print(" ")
+    print("Simulation: Smart Delivery, Version: " + __version__)
+    print(" ")
+    print("Press Ctrl + C to close the application properly. ")
+    print(" ")
+    print("#####################################################")
     
     options, args = getopt.getopt(sys.argv[1:], "g:h:p:l:n:",
                                ["group =","host =","port =", "node =", "log ="])
