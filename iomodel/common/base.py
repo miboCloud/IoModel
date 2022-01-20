@@ -31,7 +31,6 @@ class ModelObject:
         
     
     def loop(self, tick):
-        
         pass
     
     @property

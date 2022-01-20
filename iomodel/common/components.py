@@ -6,7 +6,6 @@ import logging
 
 
 
-
 class Command(ModelValue):
     
     def __init__(self, name = "defaultModel", parent = None, initial = False, 

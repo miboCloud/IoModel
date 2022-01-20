@@ -16,23 +16,29 @@ import sparkplug.sparkplug_b_pb2
 
 class NodeConnector:
     """
-    Represents one node connected to MQTT Broker with
-    Sparkplug B.
+    Represents one node connected to MQTT Broker with Sparkplug B.
+
+    Sparkplug B requires per node the usage of testaments as notification
+    when the connection dies. Therefore, it is not possible, to use multiple 
+    nodes with one MQTT Client.
     """
     
     def __init__(self, model, group = "defaultGroup", mqtt_args = ("127.0.0.1", 1883, 60), connect_id = None):
         """
         
-
         Parameters
         ----------
         model : ModelDevice
-            A ModelDevice - Can consist of more child devices.
-            The first model is taken as node for sparkplug.
+                A ModelDevice - Can consist of more child devices.
+                The first model is taken as node for sparkplug.
+
         group : String, optional
-            GroupName for this node
+                GroupName for this node
+
         mqtt_args : Args, optional
-            MQTT Arguments. The default is ("127.0.0.1", 1883, 60).
+                MQTT Arguments. The default is ("127.0.0.1", 1883, 60).
+
+        connect_id: MQTT Client id (optional)
 
         """
         self.logger = logging.getLogger(__name__)

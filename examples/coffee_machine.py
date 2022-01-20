@@ -6,10 +6,10 @@ import logging
 import json
 sys.path.insert(0, "..")
 
-from common.base import ModelDevice, ValueDataType
-from common.components import Switch, TemperatureSensor, ModelValue, LevelSensor, CommandTap, Variant
-from sparkplug.connector import NodeConnector
-from common.runner import ModelRunner
+from iomodel.common.base import ModelDevice, ValueDataType
+from iomodel.common.components import Switch, TemperatureSensor, ModelValue, LevelSensor, CommandTap, Variant
+from iomodel.sparkplug.connector import NodeConnector
+from iomodel.common.runner import ModelRunner
 from enum import Enum
 from timeit import default_timer as timer
 

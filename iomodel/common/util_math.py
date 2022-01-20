@@ -4,7 +4,11 @@
 import math
 
 class PT1:
+    """
+    First order lag element (PT1).
 
+    Can be used to simulate behavior e.g. temperature.
+    """
     def __init__(self, k = 1, t = 1):
         self._k = k
         self._t = t
