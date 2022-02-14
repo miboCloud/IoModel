@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
-from common.base import ModelValue, ModelDataSet, ValueDataType
-from common.util_math import PT1
+from iomodel.common.base import ModelValue, ModelDataSet, ValueDataType
+from iomodel.common.util_math import PT1
 import logging
 
 

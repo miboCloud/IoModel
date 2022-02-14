@@ -1,4 +1,4 @@
-from common.base import ModelObject
+from iomodel.common.base import ModelObject
 
 
 class LatchIntervall(ModelObject):

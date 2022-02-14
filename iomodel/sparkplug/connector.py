@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from common.base import ModelDevice, ModelValue, ModelDataSet, ValueDataType
+from iomodel.common.base import ModelDevice, ModelValue, ModelDataSet, ValueDataType
 from timeit import default_timer as timer
 
 import sys
@@ -9,8 +9,8 @@ import logging
 import threading
 import paho.mqtt.client as mqtt
 
-import sparkplug.sparkplug_b as sp
-import sparkplug.sparkplug_b_pb2
+import iomodel.sparkplug.sparkplug_b as sp
+import iomodel.sparkplug.sparkplug_b_pb2
 
 
 
