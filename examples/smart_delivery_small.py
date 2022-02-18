@@ -11,12 +11,75 @@ import getopt
 import logging
 
 from iomodel.common.base import ModelDevice, ValueDataType
-from iomodel.common.components import Switch, CommandToggle, CommandTap, Variant, VariantDataMap
+from iomodel.common.components import Switch, CommandToggle, CommandTap, Variant, VariantDataMap, TemperatureSensorBA
 from iomodel.sparkplug.connector import NodeConnector
 from iomodel.common.runner import ModelRunner
 
 
 __version__ = "3.0.0"
+
+from random import randint, choice
+class Box():
+
+    articles = ['Coca Cola', 'USB-Sticks', 'Apples', 'Pens', 'Coffee', 'Webcam', 'Mouse', 'Keyboard', 'Laptop', 'IPhone', 'Fanta',
+                'Peanuts', 'Back to the Future', 'ESP32', 'Camera', 'Headset', 'Book: Answer to the universe', 'Plane', 'Playcar',
+                'Beer', 'Wine', 'Milk', 'Chocolate' , 'Dress', 'Software', 'Banana', 'Tickets']
+
+    def __init__(self,length = 500):
+        self._length = length
+        self._box_id = str(self.random_with_N_digits(8))
+        self._weight = randint(1,16)
+        self._article = choice(self.articles)
+        
+    @property
+    def box_id(self):
+        return self._box_id
+    
+    @property
+    def length(self):
+        return self._length
+
+    @property
+    def weight(self):
+        return self._weight
+
+    @property
+    def article(self):
+        return self._article
+
+    def random_with_N_digits(self, n):
+        range_start = 10**(n-1)
+        range_end = (10**n)-1
+        return randint(range_start, range_end)
+
+
+class BoxManager:
+
+    def __init__(self, number_of_boxes = 25):
+
+        self._boxes = []
+        self._index = 0
+        self._number_of_boxes = number_of_boxes
+
+        for i in range(self._number_of_boxes):
+            self._boxes.append(Box())
+
+    def next_box(self):
+
+        if self._index >= self._number_of_boxes:
+            self._index = 0
+
+        box = self._boxes[self._index]
+        self._index += 1
+        return box
+
+    @property
+    def boxes(self):
+        return self._boxes
+
+
+
+box_manager = BoxManager(25)
 
 class Plant(ModelDevice):
     """
@@ -32,11 +95,11 @@ class Plant(ModelDevice):
         """
         super().__init__(name, None) 
         
-        self._system = System("0_PLC_K11-System", "S1-00-000-000", self)
+        self._mes = MES("0_PLC_A0_K1_System", "S1-00-000-000", self)
         
-        self._area2 = AreaA0x("2_PLC_K22-A2","S1-A2-000-000", self, ident = 2)
- 
-        self._system.add_area( self._area2)
+        self._area2_logistics = AreaA0x("2_PLC_A2_K3_Logistics","S1-A2-000-000", self, ident = 2)
+        self._area2_building_automation = BuildingAutomation("2_PLC_A2_K7_Building",self)
+        self._mes.add_area( self._area2_logistics)
         
     def loop(self, tick):
         super().loop(tick)
@@ -136,7 +199,7 @@ class ErrorHandler:
         """
         self._parent_error_handler = parent_error_handler
              
-class System(ModelDevice):
+class MES(ModelDevice):
     """ 
     System component.
     
@@ -152,7 +215,19 @@ class System(ModelDevice):
         
         self._on = CommandTap("Cmd_SystemOn_Tap", self, False, lambda v: self._switch_on_request(v))
         self._off = CommandTap("Cmd_SystemOff_Tap", self, False, lambda v: self._switch_off_request(v))
+
+        self._orders = VariantDataMap("Orders", self, [("id", ValueDataType.String), ("article", ValueDataType.String), ("length", ValueDataType.Int),  ("weight", ValueDataType.Int)])
+        self._initialize_orders()
+
+
         self._areas = []
+
+    def _initialize_orders(self):
+        global box_manager
+
+        for e in box_manager.boxes:
+            self._orders.set_entry(e.box_id, data=(e.box_id, e.article, e.length, e.weight))
+
 
     @property
     def reference_designation(self):
@@ -191,6 +266,25 @@ class System(ModelDevice):
     
     def loop(self, tick):
         super().loop(tick)
+
+
+class BuildingAutomation(ModelDevice):
+    """ 
+    Base class of an Building Automation Setup
+    
+    """
+    def __init__(self, name, parent = None):
+        super().__init__(name, parent) 
+        
+        self._type = Variant("Type", self, "BA", ValueDataType.String)
+        self._t1 = TemperatureSensorBA("T1", self, initial=21.5, range = 0.5, delay = 5)
+        self._t2 = TemperatureSensorBA("T2", self, initial=21.2, range = 0.2, delay = 5)
+        self._t3 = TemperatureSensorBA("T3", self, initial=21.3, range = 0.3, delay = 5)
+        self._t4 = TemperatureSensorBA("T4", self, initial=21.9, range = 0.1, delay = 5)
+
+    def loop(self, tick):
+        super().loop(tick)
+        
 
 
 class Area(ModelDevice):
@@ -288,6 +382,10 @@ class AreaA0x(Area):
         cx24.set_adjacent(cx23, cx15.conveyor)
        
         self.add_conveyor(cx11, cx12, cx13, cx14, cx15, cx16, cx17, self.cx18, cx21, cx22, cx23, cx24)
+
+        cx11.auto_add_boxes = True
+        cx21.auto_add_boxes = True
+        self.cx18.auto_clear = True
 
         self._area_state_changed(False)
         
@@ -476,7 +574,7 @@ class Conveyor:
         self._counter = 0
         
    
-        self._auto_add_boxes = CommandToggle(name + "/Sim/AutoAddBoxes_Toggle", area, True, lambda v: self._change_speed_request())
+        self._auto_add_boxes = CommandToggle(name + "/Sim/AutoAddBoxes_Toggle", area, False, lambda v: self._change_speed_request())
         self._auto_add_boxes_interval = Variant(name + "/Sim/AutoAddBoxes_Interval", area, 5, ValueDataType.Int)
         self._auto_add_boxes_current = 0;
 
@@ -484,6 +582,15 @@ class Conveyor:
         CommandTap(name + "/Sim/DriveErrorTap", area, False, lambda v: self._drive.sim_error())
         CommandTap(name + "/Sim/JamErrorTap", area, False, lambda v: self.sim_jam_error())
         
+    @property
+    def auto_add_boxes(self):
+        return self._auto_add_boxes.value
+
+    @auto_add_boxes.setter
+    def auto_add_boxes(self, value):
+        self._auto_add_boxes.value = value
+
+
     @property
     def reference_designation(self):
         return self._reference_designation.value
@@ -572,12 +679,12 @@ class Conveyor:
 
 
         if self._auto_add_boxes.value and not self.transport_handler.box:
-            self._auto_add_boxes_current += self.tick
+            self._auto_add_boxes_current += tick
         else:
             self._auto_add_boxes_current = 0
 
         if self._auto_add_boxes_current >= self._auto_add_boxes_interval.value:
-            self.insert_new_box()
+            self.transport_handler.insert_new_box()
             self._auto_add_boxes_current = 0
 
 
@@ -770,25 +877,10 @@ class DrivePos(Drive):
             self._drive_current.value = 0.0
             
   
-from random import randint
-class Box():
-    def __init__(self,length = 500):
-        self._length = length
-        self._box_id = str(self.random_with_N_digits(8))
-        
-    @property
-    def box_id(self):
-        return self._box_id
-    
-    @property
-    def length(self):
-        return self._length
 
-    def random_with_N_digits(self, n):
-        range_start = 10**(n-1)
-        range_end = (10**n)-1
-        return randint(range_start, range_end)
-            
+
+
+
              
 class TransportHandler:
     
@@ -936,10 +1028,13 @@ class TransportHandler:
         return False
     
     def insert_new_box(self):
+        global box_manager
+
         if self.box:
             raise Exception("Already Box present")
             
-        self._box = Box()
+        self._box = box_manager.next_box()
+
         self.box_position = self.length / 2
         self.occupied = True
     

@@ -226,7 +226,46 @@ class TemperatureSensor(ModelValue):
         self.logger.debug("Temperature: %f Heat: %r", self.value, self._heat)
         
         
-        
+class TemperatureSensorBA(ModelValue):
 
-            
+    def __init__(self, name = "defaultModel", parent = None, initial = 0.0, range = 0.5, delay = 5, external_write = False):
+        super().__init__(name, parent, ValueDataType.Float, initial, external_write)
+        self.logger = logging.getLogger(__name__)
+
+        self.value = initial
+        self._range = range
+        self._delay = delay
+        self._t = 0
+        self._up = False
+
+    @property
+    def range(self):
+        return self._range
+
+    @range.setter
+    def range(self, value):
+        self._range(value)
+
+
+    def loop(self, tick):
+
+        self._t += tick
+
+        if self._t >= self._delay:
+            if self._up:
+                self.value += 0.1
+
+                if self.value >= self.initial + self._range:
+                    self._up = False
+            else:
+                self.value -= 0.1
+
+                if self.value <= self.initial - self._range:
+                    self._up = True
+
+            self._t = 0
+
+    
+
+        
             
