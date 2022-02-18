@@ -158,7 +158,7 @@ class NodeConnector:
 
         # Ensure topic matches current node
         if tokens[0] == "spBv1.0" and tokens[1] == self.group and (tokens[2] == "NCMD" or tokens[2] == "DCMD") and tokens[3] == self._node.name:
-            payload = sparkplug.sparkplug_b_pb2.Payload()
+            payload = iomodel.sparkplug.sparkplug_b_pb2.Payload()
             payload.ParseFromString(msg.payload)
 
             if len(tokens) > 4:

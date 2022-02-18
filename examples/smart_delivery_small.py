@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-Example: Logistics Plant for use with Ignition 8.1 over sparkplug B MQTT
+Example: Logistics Plant for use sparkplug B MQTT
 """
 
 import sys
-sys.path.insert(0, "..")
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import getopt
 import logging
 
-
-from iomodel import ModelDevice, ValueDataType
-from iomodel import Switch, CommandToggle, CommandTap, Variant, VariantDataMap
-from iomodel import NodeConnector
-from iomodel import ModelRunner
+from iomodel.common.base import ModelDevice, ValueDataType
+from iomodel.common.components import Switch, CommandToggle, CommandTap, Variant, VariantDataMap
+from iomodel.sparkplug.connector import NodeConnector
+from iomodel.common.runner import ModelRunner
 
 
 __version__ = "3.0.0"
@@ -32,9 +32,9 @@ class Plant(ModelDevice):
         """
         super().__init__(name, None) 
         
-        self._system = System("0_System", "S1-00-000-000", self)
+        self._system = System("0_PLC_K11-System", "S1-00-000-000", self)
         
-        self._area2 = AreaA0x("2_A2","S1-A2-000-000", self, ident = 2)
+        self._area2 = AreaA0x("2_PLC_K22-A2","S1-A2-000-000", self, ident = 2)
  
         self._system.add_area( self._area2)
         
@@ -464,7 +464,7 @@ class Conveyor:
         self._transport_handler = TransportHandler(name, area, length)
         self._transport_handler.on_request_source = self._on_request_source
         self._transport_handler.on_request_target = self._on_request_target
-        
+
         # data points
         self._reset_error = CommandTap(name + "/Cmd_ResetError_Tap", area, False, lambda v: self._reset_error_request())
         self._photoeye = Switch(name + "/Photoeye", area, False, False)
@@ -475,6 +475,11 @@ class Conveyor:
         self._auto_clear = CommandToggle(name + "/Sim/AutoClear_Toggle", area, False)
         self._counter = 0
         
+   
+        self._auto_add_boxes = CommandToggle(name + "/Sim/AutoAddBoxes_Toggle", area, True, lambda v: self._change_speed_request())
+        self._auto_add_boxes_interval = Variant(name + "/Sim/AutoAddBoxes_Interval", area, 5, ValueDataType.Int)
+        self._auto_add_boxes_current = 0;
+
         CommandTap(name + "/Sim/AddBox_Tap", area, False, lambda v: self.transport_handler.insert_new_box())
         CommandTap(name + "/Sim/DriveErrorTap", area, False, lambda v: self._drive.sim_error())
         CommandTap(name + "/Sim/JamErrorTap", area, False, lambda v: self.sim_jam_error())
@@ -564,6 +569,17 @@ class Conveyor:
             pass
     
     def loop(self, tick):
+
+
+        if self._auto_add_boxes.value and not self.transport_handler.box:
+            self._auto_add_boxes_current += self.tick
+        else:
+            self._auto_add_boxes_current = 0
+
+        if self._auto_add_boxes_current >= self._auto_add_boxes_interval.value:
+            self.insert_new_box()
+            self._auto_add_boxes_current = 0
+
 
         self.transport_handler.loop(tick, self.released, self._drive.current_speed)
         self._drive.run(tick, self.transport_handler.run_drive)
@@ -1040,7 +1056,7 @@ if __name__ == "__main__":
     print(" ")
     print("#####################################################")
     
-    options, args = getopt.getopt(sys.argv[1:], "g:h:p:l:n:",
+    options, args = getopt.getopt(sys.argv[1:], "g:h:p:n:l:",
                                ["group =","host =","port =", "node =", "log ="])
     
     group = "CaseStudy"
@@ -1065,7 +1081,7 @@ if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', 
                         level=log_level)
     
-    logger = logging.getLogger("common.runner")
+    logger = logging.getLogger("iomodel.common.runner")
     logger.setLevel(logging.DEBUG)
     
     # Setup Model
