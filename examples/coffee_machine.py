@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 
 import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import getopt
 import logging
 import json
-sys.path.insert(0, "..")
 
 from iomodel.common.base import ModelDevice, ValueDataType
 from iomodel.common.components import Switch, TemperatureSensor, ModelValue, LevelSensor, CommandTap, Variant
@@ -164,7 +166,7 @@ class CoffeeMachine(ModelDevice):
         if val <= 0:
             val = 0
             
-        self._param_water_output.value = val
+        self._water_tank_level.value = val
         
         
     def loop(self, tick):
@@ -250,7 +252,9 @@ if __name__ == "__main__":
         elif name in ['-p', '--port']:
             port = int(value)
         elif name in ['-l', '--log']:
-            log_level = logging.DEBUG
+            print(value)
+            if value.lower() == 'true':
+                log_level = logging.DEBUG
             
     # Setup logger
     logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', 
