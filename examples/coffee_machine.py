@@ -16,7 +16,7 @@ from enum import Enum
 from timeit import default_timer as timer
 
 
-__version__ = "1.1.1"
+__version__ = "1.1.2"
 
 class OperationState(Enum):
     """

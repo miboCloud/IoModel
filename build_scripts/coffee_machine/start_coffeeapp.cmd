@@ -1,0 +1,1 @@
+coffee_machine.exe -g Coffee -h 86.119.36.125 -p 1883 -n your_machine_name 

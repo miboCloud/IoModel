@@ -1,1 +1,0 @@
-python .\smart_delivery_small.py -g smart -h 86.119.36.125 -p 1883 -n mbo -l

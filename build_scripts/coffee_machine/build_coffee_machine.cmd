@@ -1,0 +1,1 @@
+pyinstaller ./coffee_machine.spec --distpath=..\\..\\dist\\coffee_machine --workpath=..\\..\\build --add-data 'readme.txt;readme.txt'
