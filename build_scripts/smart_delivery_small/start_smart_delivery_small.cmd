@@ -1,0 +1,1 @@
+smart_delivery_small.exe -g SmartDelivery -h 86.119.36.125 -p 1883 -n your_machine_name 

@@ -79,7 +79,7 @@ class BoxManager:
 
 
 
-box_manager = BoxManager(25)
+box_manager = BoxManager(30)
 
 class Plant(ModelDevice):
     """
@@ -95,10 +95,10 @@ class Plant(ModelDevice):
         """
         super().__init__(name, None) 
         
-        self._mes = MES("0_PLC_A0_K1_System", "S1-00-000-000", self)
-        
-        self._area2_logistics = AreaA0x("2_PLC_A2_K3_Logistics","S1-A2-000-000", self, ident = 2)
-        self._area2_building_automation = BuildingAutomation("2_PLC_A2_K7_Building",self)
+        self._mes = MES("PLC_A0_K1_System", "S1-00-000-000", self)
+        self._network = Network("Switch_K9_Network",self)
+        self._area2_logistics = AreaA0x("PLC_A2_K3_Logistics","S1-A2-000-000", self, ident = 2)
+        self._area2_building_automation = BuildingAutomation("PLC_A2_K7_Building",self)
         self._mes.add_area( self._area2_logistics)
         
     def loop(self, tick):
@@ -216,9 +216,10 @@ class MES(ModelDevice):
         self._on = CommandTap("Cmd_SystemOn_Tap", self, False, lambda v: self._switch_on_request(v))
         self._off = CommandTap("Cmd_SystemOff_Tap", self, False, lambda v: self._switch_off_request(v))
 
-        self._orders = VariantDataMap("Orders", self, [("id", ValueDataType.String), ("article", ValueDataType.String), ("length", ValueDataType.Int),  ("weight", ValueDataType.Int)])
+        self._orders = VariantDataMap("TransportOrders", self, [("id", ValueDataType.String), ("article", ValueDataType.String), ("length", ValueDataType.Int),  ("weight", ValueDataType.Int)])
         self._initialize_orders()
 
+        self._performance = CommandToggle("Performance_Suggestion_A2", self, True)
 
         self._areas = []
 
@@ -284,8 +285,22 @@ class BuildingAutomation(ModelDevice):
 
     def loop(self, tick):
         super().loop(tick)
-        
 
+
+class Network(ModelDevice):
+    """ 
+    Base class of the network infrastructure
+    
+    """
+    def __init__(self, name, parent = None):
+        super().__init__(name, parent) 
+        
+        self._type = Variant("Type", self, "Network", ValueDataType.String)
+        self._switch_online = CommandToggle("SwitchOnline", self, True)
+
+    def loop(self, tick):
+        super().loop(tick)
+        
 
 class Area(ModelDevice):
     """ 
@@ -305,6 +320,7 @@ class Area(ModelDevice):
 
         self._area_on = CommandToggle("Cmd_AreaOn_Toggle", self, False, lambda v: self._area_state_changed(v) )
         self._auto = CommandToggle("Cmd_ModeAuto_Toggle", self, True, lambda v: self._area_state_changed(v))
+        self._performance = CommandToggle("Cmd_PerformanceMode", self, True)
         
     @property
     def error_handler(self):

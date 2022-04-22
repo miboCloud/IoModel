@@ -1,6 +1,6 @@
-To use the application, please modify start_coffeeapp.cmd and setup your own name.
+To use the application, please modify start_smart_delivery_small.cmd and setup your own name.
 
-Description: CoffeeApp
+Description: Smart Delivery Small
 ------------------------
 Simple Python App - Executable for windows operating systems.
 
